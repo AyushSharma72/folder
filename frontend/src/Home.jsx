@@ -1,10 +1,14 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { FaFolder } from "react-icons/fa"; // Folder icon
+import { FaFolder, FaEllipsisV } from "react-icons/fa"; // Folder and Menu Icons
+import { Menu, MenuItem} from "@mui/material";
+import { CiMenuKebab } from "react-icons/ci";
 
 const Home = () => {
   const [folders, setFolders] = useState([]);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const [selectedFolder, setSelectedFolder] = useState(null);
   const API_URL = import.meta.env.VITE_API_URL;
   const navigate = useNavigate();
 
@@ -16,23 +20,23 @@ const Home = () => {
     }
 
     setIsAuthenticated(true);
-    const fetchFolders = async () => {
-      try {
-        const response = await fetch(`${API_URL}/api/folder`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!response.ok) throw new Error("Failed to fetch folders");
-
-        const data = await response.json();
-        setFolders(data);
-      } catch (error) {
-        console.error("Error fetching folders:", error);
-      }
-    };
-
     fetchFolders();
   }, [API_URL]);
+
+  const fetchFolders = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/folder`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to fetch folders");
+
+      const data = await response.json();
+      setFolders(data);
+    } catch (error) {
+      console.error("Error fetching folders:", error);
+    }
+  };
 
   const createFolder = async () => {
     if (!isAuthenticated) {
@@ -63,6 +67,36 @@ const Home = () => {
     }
   };
 
+  const deleteFolder = async (folderId) => {
+    const confirmDelete = window.confirm(
+      "Are you sure you want to delete this folder and all its contents?"
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const response = await fetch(`${API_URL}/api/folder/${folderId}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+
+      if (!response.ok) throw new Error("Failed to delete folder");
+
+      setFolders(folders.filter((folder) => folder._id !== folderId));
+    } catch (error) {
+      console.error("Error deleting folder:", error);
+    }
+  };
+
+  const handleMenuOpen = (event, folderId) => {
+    setAnchorEl(event.currentTarget);
+    setSelectedFolder(folderId);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+    setSelectedFolder(null);
+  };
+
   return (
     <div className="min-h-screen bg-gray-100 flex flex-col items-center p-6">
       <h1 className="text-3xl font-bold mb-6">Your Folders</h1>
@@ -80,24 +114,52 @@ const Home = () => {
             onClick={createFolder}
             className="mb-6 px-4 py-2 bg-blue-500 text-white rounded-lg shadow-md hover:bg-blue-600 transition"
           >
-            + Create New Folder
+            Create New Folder
           </button>
 
           {/* Folder Grid Layout */}
-          <div className="w-full  flex-wrap sm:w-1/2 flex gap-6 bg-white p-6 rounded-lg shadow-md">
+          <div className="w-full flex-wrap sm:w-1/2 flex gap-6 bg-white p-6 rounded-lg shadow-md justify-center">
             {folders.length > 0 ? (
               folders.map((folder) => (
-                <Link
+                <div
                   key={folder._id}
-                  to={`/dashboard/${folder._id}`}
-                  className="flex flex-col items-center space-y-2 p-3 hover:bg-gray-200 rounded-lg transition"
+                  className="p-3 bg-gray-200 hover:bg-gray-300 rounded-lg transition relative"
                 >
-                  <FaFolder className="text-yellow-500 text-6xl" />{" "}
-                  {/* Bigger Folder Icon */}
-                  <span className="text-center text-gray-700 font-medium">
-                    {folder.name}
-                  </span>
-                </Link>
+                  <Link
+                    to={`/dashboard/${folder._id}`}
+                    className="flex flex-col items-center"
+                  >
+                    <FaFolder className="text-yellow-500 text-6xl" />
+                    <span className="text-center text-gray-700 font-medium">
+                      {folder.name}
+                    </span>
+                  </Link>
+
+                  {/* Dropdown Menu using MUI */}
+                  <div className="absolute top-1 right-0 cursor-pointer">
+                     
+                   <CiMenuKebab
+                      onClick={(event) => handleMenuOpen(event, folder._id)}
+                      
+                    >
+                      <FaEllipsisV />
+                    </CiMenuKebab>
+                    <Menu
+                      anchorEl={anchorEl}
+                      open={Boolean(anchorEl) && selectedFolder === folder._id}
+                      onClose={handleMenuClose}
+                    >
+                      <MenuItem
+                        onClick={() => {
+                          deleteFolder(folder._id);
+                          handleMenuClose();
+                        }}
+                      >
+                        Delete Folder
+                      </MenuItem>
+                    </Menu>
+                  </div>
+                </div>
               ))
             ) : (
               <p className="text-gray-500 text-center p-3 col-span-full">

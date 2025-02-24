@@ -1,7 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Backdrop from "@mui/material/Backdrop";
+import CircularProgress from "@mui/material/CircularProgress";
+import toast, { Toaster } from "react-hot-toast"; 
+
 const Login = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     name: "",
@@ -15,33 +20,41 @@ const Login = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true); // Show Backdrop
+
     const url = isLogin
       ? `${import.meta.env.VITE_API_URL}/api/auth/login`
       : `${import.meta.env.VITE_API_URL}/api/auth/register`;
+
     try {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
+
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || "Something went wrong");
 
       if (isLogin) {
         localStorage.setItem("token", data.token);
-        alert("Login successful!");
+        toast.success("Login successful! 🎉");
         navigate("/");
       } else {
-        alert("Signup successful! You can now log in.");
+        toast.success("Signup successful! You can now log in. ✅");
         setIsLogin(true);
       }
     } catch (error) {
-      alert(error.message);
+      toast.error(error.message);
+    } finally {
+      setLoading(false); // Hide Backdrop
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen bg-gray-100">
+    <div className="flex justify-center items-center h-[650px] bg-gray-100">
+      <Toaster position="top-center" reverseOrder={false} />{" "}
+      {/* Toast Container */}
       <div className="bg-white p-8 rounded-lg shadow-lg w-96">
         <h2 className="text-2xl font-bold text-center mb-4">
           {isLogin ? "Login" : "Signup"}
@@ -78,7 +91,8 @@ const Login = () => {
           />
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600"
+            className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 disabled:opacity-50"
+            disabled={loading} // Disable button while loading
           >
             {isLogin ? "Login" : "Signup"}
           </button>
@@ -93,6 +107,17 @@ const Login = () => {
           </button>
         </p>
       </div>
+      {/* MUI Backdrop with Spinner */}
+      <Backdrop
+        open={loading}
+        style={{
+          zIndex: 1000,
+          color: "#fff",
+          backgroundColor: "rgba(0, 0, 0, 0.5)",
+        }}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
     </div>
   );
 };

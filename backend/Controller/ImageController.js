@@ -5,13 +5,10 @@ const requireSignIn = require("../middleware/authMiddleware");
 
 const router = express.Router();
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
-});
-
+const storage = multer.memoryStorage();
 const upload = multer({ storage });
 
+// Upload Image
 router.post(
   "/upload",
   requireSignIn,
@@ -19,62 +16,90 @@ router.post(
   async (req, res) => {
     try {
       const { name, folder } = req.body;
-      if (!name || !req.file)
+      if (!name || !req.file) {
         return res.status(400).json({ message: "Name and image are required" });
+      }
 
-      const imageUrl = `/uploads/${req.file.filename}`;
+      const existingImage = await Image.findOne({ name, folder });
+      if (existingImage) {
+        return res.status(400).json({
+          message: "An image with this name already exists in the folder",
+        });
+      }
+
       const image = await Image.create({
         name,
-        imageUrl,
+        image: {
+          data: req.file.buffer,
+          contentType: req.file.mimetype,
+        },
         folder,
         user: req.user.id,
       });
 
       res.status(201).json(image);
     } catch (error) {
+      console.error("Upload Error:", error);
       res.status(500).json({ message: "Server error", error });
     }
   }
 );
 
-router.get("/", requireSignIn, async (req, res) => {
+// Get images for a specific folder
+router.get("/list/:folderId", requireSignIn, async (req, res) => {
   try {
+    const { folderId } = req.params;
     const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 10;
+    const limit = parseInt(req.query.limit) || 4;
     const skip = (page - 1) * limit;
 
-    const images = await Image.find({ user: req.user.id })
+    // Fetch images for the logged-in user and the specific folder
+    const images = await Image.find({ user: req.user.id, folder: folderId })
       .skip(skip)
-      .limit(limit);
+      .limit(limit)
+      .select("name image.contentType image.data");
 
-    const totalImages = await Image.countDocuments({ user: req.user.id });
+    const totalImages = await Image.countDocuments({
+      user: req.user.id,
+      folder: folderId,
+    });
 
     res.status(200).json({
       success: true,
       totalImages,
       totalPages: Math.ceil(totalImages / limit),
       currentPage: page,
-      images,
+      images: images.map((img) => ({
+        _id: img._id,
+        name: img.name,
+        contentType: img.image.contentType,
+        imageUrl: `data:${
+          img.image.contentType
+        };base64,${img.image.data.toString("base64")}`,
+      })),
     });
   } catch (error) {
+    console.error("Fetch Images Error:", error);
     res.status(500).json({ message: "Server error", error });
   }
 });
 
+router.delete("/:imageId", async (req, res) => {
+  const { imageId } = req.params;
 
-router.get("/search", requireSignIn, async (req, res) => {
   try {
-    const { query } = req.query;
-    if (!query)
-      return res.status(400).json({ message: "Search query is required" });
+    const image = await Image.findById(imageId);
+    if (!image) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Image not found" });
+    }
+    await Image.findByIdAndDelete(imageId);
 
-    const images = await Image.find({
-      user: req.user.id,
-      name: { $regex: query, $options: "i" },
-    });
-    res.status(200).json(images);
+    res.json({ success: true, message: "Image deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    console.error("Error deleting image:", error);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 

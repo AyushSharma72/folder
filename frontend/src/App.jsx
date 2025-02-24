@@ -6,13 +6,11 @@ import Home from "./Home";
 
 const App = () => {
   return (
-   
-      <Routes>
-        <Route path="/" element={<Home/>} />
-        <Route path="/auth" element={<Auth />} />
-        <Route path="/dashboard/:id" element={<Dashboard />} />
-      </Routes>
-    
+    <Routes>
+      <Route path="/" element={<Home />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/dashboard/:folderId" element={<Dashboard />} />
+    </Routes>
   );
 };
 
